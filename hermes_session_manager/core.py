@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import date
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -18,6 +19,8 @@ class SessionStore(Protocol):
     ) -> dict[str, Any] | None: ...
 
     def set_session_archived(self, session_id: str, archived: bool) -> bool: ...
+
+    def set_session_title(self, session_id: str, title: str) -> bool: ...
 
     def get_session(self, session_id: str) -> dict[str, Any] | None: ...
 
@@ -118,6 +121,12 @@ class SessionManager:
         if not session_id:
             raise SessionManagerError(t("missing_session_id"))
         if action == "archive":
+            title = _optional_text(session.get("title"))
+            if title and not session.get("archived"):
+                archived_title = _archived_title(store, title)
+                if not store.set_session_title(session_id, archived_title):
+                    raise SessionManagerError(t("session_gone"))
+                title = archived_title
             if not store.set_session_archived(session_id, True):
                 raise SessionManagerError(t("session_gone"))
         else:
@@ -135,7 +144,11 @@ class SessionManager:
         return SessionResult(
             action=action,
             session_id=session_id,
-            title=_optional_text(session.get("title")),
+            title=(
+                title
+                if action == "archive"
+                else _optional_text(session.get("title"))
+            ),
             thread_id=_optional_text(session.get("thread_id")),
         )
 
@@ -145,6 +158,12 @@ def _optional_text(value: Any) -> str | None:
         return None
     text = str(value).strip()
     return text or None
+
+
+def _archived_title(store: SessionStore, title: str) -> str:
+    suffix = t("archive_title_suffix", date=date.today().isoformat())
+    max_length = int(getattr(store, "MAX_TITLE_LENGTH", 100))
+    return f"{title[: max_length - len(suffix)].rstrip()}{suffix}"
 
 
 def _sessions_dir(store: SessionStore) -> Path | None:

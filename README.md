@@ -23,9 +23,10 @@ In an idle Telegram chat or forum topic, send:
 ```
 
 The plugin resolves the exact active Telegram session for the gateway routing
-key and calls Hermes `SessionDB.set_session_archived(session_id, True)`. Hermes
-performs a soft archive: messages remain in `state.db`; no prune, delete, cron,
-subagent, or routing mutation occurs. Repeating `/archive` is safe.
+key, appends ` - archived YYYY-MM-DD` to its title, and calls Hermes
+`SessionDB.set_session_archived(session_id, True)`. Hermes performs a soft
+archive: messages remain in `state.db`; no prune, delete, cron, subagent, or
+routing mutation occurs. Repeating `/archive` is safe.
 
 The response contains the `session_id`, title, and `thread_id`. `/archive` has
 no arguments and never performs bulk archival.
@@ -101,6 +102,7 @@ The plugin targets Hermes versions that provide all of:
 - `PluginContext.register_command()` with `fn(raw_args: str)`;
 - the `pre_command` hook with `surface`, `platform`, and `session_key`;
 - `hermes_state.SessionDB.find_latest_gateway_session_for_peer()`;
+- `hermes_state.SessionDB.set_session_title()`;
 - `hermes_state.SessionDB.set_session_archived()`.
 - `hermes_state.SessionDB.get_session()`, `get_session_delete_targets()`, and
   `delete_session()`.

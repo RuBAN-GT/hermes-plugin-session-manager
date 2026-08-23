@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import unittest
+from datetime import date
 from unittest.mock import patch
 
 from hermes_session_manager.core import SessionManager, SessionManagerError
@@ -16,6 +17,7 @@ class FakeStore:
             targets if targets is not None else [session["id"]] if session else []
         )
         self.archived = []
+        self.titles = []
         self.deleted = []
         self.closed = False
 
@@ -32,6 +34,10 @@ class FakeStore:
         self.archived.append((session_id, archived))
         return self.archive_result
 
+    def set_session_title(self, session_id, title):
+        self.titles.append((session_id, title))
+        return True
+
     def get_session_delete_targets(self, session_id):
         self.delete_target_request = session_id
         return self.targets
@@ -45,7 +51,9 @@ class FakeStore:
 
 
 class SessionManagerTests(unittest.TestCase):
-    def test_archives_exact_telegram_session_and_preserves_metadata(self):
+    @patch("hermes_session_manager.core.date")
+    def test_archives_exact_telegram_session_and_renames_it(self, mock_date):
+        mock_date.today.return_value = date(2026, 8, 23)
         store = FakeStore(
             {
                 "id": "session-1",
@@ -61,12 +69,45 @@ class SessionManagerTests(unittest.TestCase):
 
         self.assertEqual(store.source, "telegram")
         self.assertEqual(store.session_key, "key-1")
+        self.assertEqual(
+            store.titles, [("session-1", "Topic - archived 2026-08-23")]
+        )
         self.assertEqual(store.archived, [("session-1", True)])
         self.assertTrue(store.closed)
         self.assertEqual(
             result.message(),
-            "Archived session session-1 (title: Topic; thread_id: 42).",
+            "Archived session session-1 "
+            "(title: Topic - archived 2026-08-23; thread_id: 42).",
         )
+
+    @patch("hermes_session_manager.core.date")
+    def test_archive_keeps_titles_within_hermes_limit(self, mock_date):
+        mock_date.today.return_value = date(2026, 8, 23)
+        title = "x" * 100
+        store = FakeStore(
+            {"id": "session-1", "source": "telegram", "title": title}
+        )
+
+        SessionManager(lambda: store).manage_session("session-1", "archive")
+
+        self.assertEqual(
+            store.titles,
+            [("session-1", "x" * 78 + " - archived 2026-08-23")],
+        )
+
+    def test_repeated_archive_does_not_rename_an_archived_session(self):
+        store = FakeStore(
+            {
+                "id": "session-1",
+                "source": "telegram",
+                "title": "Topic - archived 2026-08-23",
+                "archived": True,
+            }
+        )
+
+        SessionManager(lambda: store).manage_session("session-1", "archive")
+
+        self.assertEqual(store.titles, [])
 
     @patch("hermes_session_manager.i18n._language", return_value="ru")
     def test_messages_use_the_hermes_language(self, _language):

@@ -7,6 +7,7 @@ from typing import Any
 _MESSAGES = {
     "en": {
         "result_archive": "Archived session {session_id} (title: {title}; thread_id: {thread_id}).",
+        "archive_title_suffix": " - archived {date}",
         "result_delete": "Deleted session {session_id} (title: {title}; thread_id: {thread_id}).",
         "storage_unavailable": "Hermes session storage is unavailable.",
         "current_context_unavailable": "Current Telegram session context is unavailable.",
@@ -30,6 +31,7 @@ _MESSAGES = {
     },
     "ru": {
         "result_archive": "Сессия {session_id} архивирована (название: {title}; thread_id: {thread_id}).",
+        "archive_title_suffix": " - архив {date}",
         "result_delete": "Сессия {session_id} удалена (название: {title}; thread_id: {thread_id}).",
         "storage_unavailable": "Хранилище сессий Hermes недоступно.",
         "current_context_unavailable": "Контекст текущей Telegram-сессии недоступен.",
