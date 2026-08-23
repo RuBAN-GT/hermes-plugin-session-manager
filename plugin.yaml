@@ -1,0 +1,5 @@
+name: session-manager
+version: 0.1.0
+description: Archive the current Telegram Hermes session without deleting history.
+author: Hermes Session Manager contributors
+api_version: 1

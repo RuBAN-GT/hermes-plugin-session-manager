@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hermes-plugin-session-manager"
+version = "0.1.0"
+description = "Archive the current Telegram Hermes session without deleting history."
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+authors = [{ name = "Hermes Session Manager contributors" }]
+keywords = ["hermes-agent", "hermes-plugin", "telegram", "sessions"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+
+[project.entry-points."hermes_agent.plugins"]
+session-manager = "hermes_session_manager.plugin:register"
+
+[tool.setuptools.packages.find]
+include = ["hermes_session_manager*"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py310"
+extend-exclude = ["build", "dist"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
+
+[tool.ruff.lint.per-file-ignores]
+# Translation strings are intentionally kept as complete sentences for translators.
+"hermes_session_manager/i18n.py" = ["E501"]
