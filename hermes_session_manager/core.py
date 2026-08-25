@@ -1,4 +1,4 @@
-"""Transport-independent Telegram session management."""
+"""Transport-independent Telegram and CLI session management."""
 
 from __future__ import annotations
 
@@ -9,6 +9,8 @@ from pathlib import Path
 from typing import Any, Protocol
 
 from .i18n import t
+
+_ALLOWED_SOURCES = frozenset({"telegram", "cli"})
 
 
 class SessionStore(Protocol):
@@ -69,7 +71,7 @@ def default_store_factory() -> SessionStore:
 
 
 class SessionManager:
-    """Manage one Telegram session resolved by routing key or explicit ID."""
+    """Manage one Telegram or CLI session resolved by routing key or explicit ID."""
 
     def __init__(
         self, store_factory: Callable[[], SessionStore] = default_store_factory
@@ -115,8 +117,8 @@ class SessionManager:
             raise SessionManagerError(t("invalid_action"))
         if not session:
             raise SessionManagerError(t("session_not_found"))
-        if str(session.get("source", "")).lower() != "telegram":
-            raise SessionManagerError(t("non_telegram"))
+        if str(session.get("source", "")).lower() not in _ALLOWED_SOURCES:
+            raise SessionManagerError(t("unsupported_source"))
         session_id = str(session.get("id") or "")
         if not session_id:
             raise SessionManagerError(t("missing_session_id"))

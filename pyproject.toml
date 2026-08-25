@@ -4,13 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "hermes-plugin-session-manager"
-version = "0.1.0"
-description = "Archive the current Telegram Hermes session without deleting history."
+version = "0.2.0"
+description = "Archive the current Telegram or CLI Hermes session without deleting history."
 readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"
 authors = [{ name = "Hermes Session Manager contributors" }]
-keywords = ["hermes-agent", "hermes-plugin", "telegram", "sessions"]
+keywords = ["hermes-agent", "hermes-plugin", "telegram", "cli", "sessions"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",

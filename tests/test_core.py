@@ -144,14 +144,23 @@ class SessionManagerTests(unittest.TestCase):
         self.assertEqual(store.deleted, [("session-1", None, ["session-1"])])
         self.assertEqual(result.action, "delete")
 
-    def test_rejects_empty_context_and_non_telegram_session(self):
+    def test_archives_explicit_cli_session(self):
+        store = FakeStore({"id": "cli-1", "source": "cli", "title": "CLI work"})
+
+        result = SessionManager(lambda: store).manage_session("cli-1", "archive")
+
+        self.assertEqual(store.requested_session_id, "cli-1")
+        self.assertEqual(store.archived, [("cli-1", True)])
+        self.assertEqual(result.action, "archive")
+
+    def test_rejects_empty_context_and_unsupported_source(self):
         with self.assertRaisesRegex(SessionManagerError, "context"):
             SessionManager(lambda: FakeStore(None)).manage_current_telegram_session(
                 "", "archive"
             )
-        store = FakeStore({"id": "cli-1", "source": "cli"})
-        with self.assertRaisesRegex(SessionManagerError, "non-Telegram"):
-            SessionManager(lambda: store).manage_session("cli-1", "archive")
+        store = FakeStore({"id": "cron-1", "source": "cron"})
+        with self.assertRaisesRegex(SessionManagerError, "unsupported source"):
+            SessionManager(lambda: store).manage_session("cron-1", "archive")
         self.assertEqual(store.archived, [])
 
 

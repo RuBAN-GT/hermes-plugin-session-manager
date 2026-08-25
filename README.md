@@ -1,9 +1,9 @@
 # Hermes Session Manager
 
-`hermes-plugin-session-manager` archives or deletes Telegram Hermes sessions. It
-is designed for Hermes running in Docker or another managed runtime; the plugin
-uses Hermes' in-process state API and does not require Hermes locally on the
-development machine.
+`hermes-plugin-session-manager` archives or deletes Telegram and CLI Hermes
+sessions. It is designed for Hermes running in Docker or another managed
+runtime; the plugin uses Hermes' in-process state API and does not require
+Hermes locally on the development machine.
 
 ## Language
 
@@ -16,14 +16,16 @@ remain stable English identifiers: `/archive`, `/delete`, `session_id`, and
 
 ## Behavior
 
-In an idle Telegram chat or forum topic, send:
+In an idle Telegram chat or forum topic, or in the Hermes CLI, send:
 
 ```text
 /archive
 ```
 
-The plugin resolves the exact active Telegram session for the gateway routing
-key, appends ` - archived YYYY-MM-DD` to its title, and calls Hermes
+On Telegram the plugin resolves the exact active session for the gateway
+routing key. In the CLI it archives the current process session (tracked from
+`on_session_start` / `on_session_reset`, or `session_id` when Hermes provides
+it). It appends ` - archived YYYY-MM-DD` to the title and calls Hermes
 `SessionDB.set_session_archived(session_id, True)`. Hermes performs a soft
 archive: messages remain in `state.db`; no prune, delete, cron, subagent, or
 routing mutation occurs. Repeating `/archive` is safe.
@@ -31,7 +33,7 @@ routing mutation occurs. Repeating `/archive` is safe.
 The response contains the `session_id`, title, and `thread_id`. `/archive` has
 no arguments and never performs bulk archival.
 
-To permanently delete only the current Telegram session:
+To permanently delete only the current Telegram or CLI session:
 
 ```text
 /delete confirm
@@ -44,27 +46,29 @@ children, so the plugin never deletes those sessions.
 
 ## CLI And AI
 
-The CLI and AI tool require an explicit `session_id`; neither can infer a
-"current" CLI, cron, or subagent session.
+The `hermes session-manager` subcommand and AI tool require an explicit
+`session_id`; neither infers a "current" cron or subagent session.
 
 ```bash
-hermes session-manager archive --session-id <telegram-session-id>
-hermes session-manager delete --session-id <telegram-session-id> --confirm
+hermes session-manager archive --session-id <telegram-or-cli-session-id>
+hermes session-manager archive --session-id <id1>,<id2>,<id3>
+hermes session-manager delete --session-id <telegram-or-cli-session-id> --confirm
 ```
 
 The agent receives the `manage_telegram_session` tool with `action`,
 `session_id`, and optional `confirm`. For deletion it must pass
-`confirm: true`. The tool accepts only persisted Telegram sessions.
+`confirm: true`. The tool accepts persisted Telegram and CLI sessions.
 
 ## Safety Boundaries
 
-- Telegram commands run only when Hermes reports `surface="gateway"` and
+- Telegram commands run when Hermes reports `surface="gateway"` and
   `platform="telegram"`.
-- It resolves by the gateway's exact `session_key`, never by topic title.
-- It refuses a row whose persisted source is not `telegram`.
+- CLI slash commands run when Hermes reports `surface="cli"`.
+- Telegram resolution uses the gateway's exact `session_key`, never topic title.
+- It refuses a row whose persisted source is not `telegram` or `cli`.
 - If Hermes cannot provide command context, no session is modified.
-- CLI and AI actions require an explicit session ID and refuse any non-Telegram
-  row, including CLI, cron, and subagent sessions.
+- The `hermes session-manager` subcommand and AI tool require an explicit
+  session ID and refuse cron, Discord, and other non-CLI/Telegram rows.
 - Deletion requires explicit confirmation and refuses a delegate cascade.
 - The current Hermes hook contract does not expose `chat_id` and `thread_id` to
   a slash-command handler. The plugin therefore uses the exact gateway routing
@@ -73,6 +77,10 @@ The agent receives the `manage_telegram_session` tool with `action`,
 `pre_command` is not fired for a command intercepted while an agent is already
 running. In that case `/archive` fails closed and reports that nothing was
 archived. Stop the active run first, then send `/archive` again.
+
+In the CLI, `/archive` before the first turn can fail closed if Hermes has not
+yet emitted `on_session_start` and did not pass `session_id` to `pre_command`.
+Send a message first, or pass `--session-id` to `hermes session-manager`.
 
 ## Install
 
@@ -101,6 +109,8 @@ The plugin targets Hermes versions that provide all of:
 
 - `PluginContext.register_command()` with `fn(raw_args: str)`;
 - the `pre_command` hook with `surface`, `platform`, and `session_key`;
+- the `on_session_start` and `on_session_reset` hooks with `session_id` and
+  `platform`;
 - `hermes_state.SessionDB.find_latest_gateway_session_for_peer()`;
 - `hermes_state.SessionDB.set_session_title()`;
 - `hermes_state.SessionDB.set_session_archived()`.

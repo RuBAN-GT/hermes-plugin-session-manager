@@ -9,7 +9,10 @@ from hermes_session_manager.plugin import (
     _archive_command,
     _cli_handler,
     _delete_command,
+    _on_cli_session,
+    _parse_session_ids,
     _pre_command_handler,
+    _set_cli_session,
     _tool_handler,
     register,
 )
@@ -80,17 +83,39 @@ class PluginTests(unittest.TestCase):
         self.assertEqual(manager.calls[-1], ("route", "delete", True))
         self.assertIn("Deleted session", _delete_command("confirm"))
 
-    def test_commands_reject_invalid_arguments_and_cli_context(self):
+    def test_cli_commands_archive_or_delete_tracked_session(self):
+        manager = FakeManager(SessionResult("archive", "cli-1", "CLI work", None))
+        hook = _pre_command_handler(manager)
+        _set_cli_session(None)
+        _on_cli_session(session_id="cli-1", platform="cli")
+
+        hook(surface="cli", command="archive", args_raw="")
+
+        self.assertEqual(manager.calls, [("cli-1", "archive", False)])
+        self.assertIn("cli-1", _archive_command(""))
+        manager.result = SessionResult("delete", "cli-1", "CLI work", None)
+        hook(surface="cli", command="delete", args_raw="confirm")
+        self.assertEqual(manager.calls[-1], ("cli-1", "delete", True))
+        self.assertIn("Deleted session", _delete_command("confirm"))
+        _set_cli_session(None)
+
+    def test_cli_commands_use_explicit_session_id_when_provided(self):
+        manager = FakeManager(SessionResult("archive", "cli-2", None, None))
+        hook = _pre_command_handler(manager)
+        _set_cli_session(None)
+
+        hook(surface="cli", command="archive", args_raw="", session_id="cli-2")
+
+        self.assertEqual(manager.calls, [("cli-2", "archive", False)])
+        self.assertIn("cli-2", _archive_command(""))
+        _set_cli_session(None)
+
+    def test_commands_reject_invalid_arguments_and_missing_cli_context(self):
         manager = FakeManager(SessionResult("archive", "s-1", None, None))
         hook = _pre_command_handler(manager)
+        _set_cli_session(None)
 
-        hook(
-            surface="cli",
-            command="archive",
-            args_raw="",
-            session_key="route",
-            platform="telegram",
-        )
+        hook(surface="cli", command="archive", args_raw="")
         hook(
             surface="gateway",
             command="delete",
@@ -100,8 +125,44 @@ class PluginTests(unittest.TestCase):
         )
 
         self.assertEqual(manager.calls, [])
+        self.assertIn("unavailable", _archive_command(""))
         self.assertEqual(_archive_command("all"), "Usage: /archive")
         self.assertEqual(_delete_command(""), "Usage: /delete confirm")
+
+    def test_cli_archives_comma_separated_session_ids(self):
+        manager = FakeManager(SessionResult("archive", "s-1", None, None))
+        _cli_handler(
+            manager,
+            SimpleNamespace(
+                session_id="s-1, s-2,,s-1", action="archive", confirm=False
+            ),
+        )
+        self.assertEqual(
+            manager.calls,
+            [("s-1", "archive", False), ("s-2", "archive", False)],
+        )
+        self.assertEqual(_parse_session_ids("s-1, s-2,,s-3"), ["s-1", "s-2", "s-3"])
+
+    def test_cli_continues_after_one_failed_session_id(self):
+        class MixedManager(FakeManager):
+            def manage_session(self, session_id, action, *, confirm=False):
+                self.calls.append((session_id, action, confirm))
+                if session_id == "missing":
+                    raise SessionManagerError("Session not found.")
+                return SessionResult(action, session_id, None, None)
+
+        manager = MixedManager()
+        with self.assertRaisesRegex(SystemExit, "1 of 2"):
+            _cli_handler(
+                manager,
+                SimpleNamespace(
+                    session_id="ok,missing", action="archive", confirm=False
+                ),
+            )
+        self.assertEqual(
+            manager.calls,
+            [("ok", "archive", False), ("missing", "archive", False)],
+        )
 
     def test_cli_and_ai_tool_pass_explicit_session_id_and_confirmation(self):
         manager = FakeManager(SessionResult("delete", "s-1", None, None))
@@ -141,7 +202,10 @@ class PluginTests(unittest.TestCase):
 
         register(context)
 
-        self.assertEqual(context.hooks[0][0], "pre_command")
+        self.assertEqual(
+            [hook[0] for hook in context.hooks],
+            ["pre_command", "on_session_start", "on_session_reset"],
+        )
         self.assertEqual(
             [entry[0][0] for entry in context.commands], ["archive", "delete"]
         )
